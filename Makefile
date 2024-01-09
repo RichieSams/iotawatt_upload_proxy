@@ -8,8 +8,11 @@ else
 DETECTED_OS=$(shell uname -s | tr '[:upper:]' '[:lower:]')
 endif
 
-export IMAGENAME=ghcr.io/richiesams/iotawatt_upload_proxy
-TAG:=$(shell git describe --tags --dirty 2>/dev/null || echo v0.0.0)
+ifeq ($(DETECTED_OS),windows)
+TAG:=$(shell git describe --tags --dirty 2> nul || echo -n v0.0.0)
+else
+TAG:=$(shell git describe --tags --dirty 2>/dev/null || echo -n v0.0.0)
+endif
 
 
 .PHONY: vendor build
@@ -28,7 +31,7 @@ build:
 
 image:
 ifeq ($(DETECTED_OS),windows)
-	cmd /C "set GORELEASER_CURRENT_TAG=$(TAG) && goreleaser release --snapshot --clean"
+	cmd /C "set GORELEASER_CURRENT_TAG=$(TAG)&&goreleaser release --snapshot --clean"
 else
 	GORELEASER_CURRENT_TAG=$(TAG) goreleaser release --snapshot --clean
 endif
@@ -42,7 +45,7 @@ run:
 	docker run --rm -it \
 		-e IUP_UPSTREAM=http://192.168.68.107:8428 \
 		-p 8888:8888 \
-		$(IMAGENAME):$(TAG)
+		ghcr.io/richiesams/iotawatt_upload_proxy:$(TAG)
 
 
 ###########
