@@ -259,8 +259,6 @@ func (h *queryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.log.Info(fmt.Sprintf("Response: %v", influxResponse))
-
 	w.WriteHeader(http.StatusOK)
 
 	encoder := json.NewEncoder(w)
