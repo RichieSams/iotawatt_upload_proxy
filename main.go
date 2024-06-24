@@ -29,12 +29,11 @@ var queryParser = regexp.MustCompile(`^\s*SELECT\s+LAST\((?P<column>.+)\)\s+FROM
 const (
 	viperPort     = "port"
 	viperUpstream = "upstream"
+	viperLogLevel = "log_level"
 )
 
 func main() {
 	ctx := context.Background()
-
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 	// Initialize viper
 	v := viper.New()
@@ -44,10 +43,19 @@ func main() {
 	// Set variable defaults
 	v.SetDefault(viperPort, 8888)
 	v.SetDefault(viperUpstream, "http://localhost:8428")
+	v.SetDefault(viperLogLevel, "info")
 
 	// Fetch the variable values
 	port := v.GetInt(viperPort)
 	upstream := v.GetString(viperUpstream)
+	logLevelStr := v.GetString(viperLogLevel)
+
+	logLevel := slog.LevelInfo
+	if err := logLevel.UnmarshalText([]byte(logLevelStr)); err != nil {
+		panic(fmt.Sprintf("Failed to parse log_level - %v", err))
+	}
+
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
 
 	// Start the server
 	done := make(chan os.Signal, 1)
@@ -195,6 +203,8 @@ func (h *queryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.log.Info("Query", "metric", query.metric, "column", query.column, "db", db[0], query.whereKey, query.whereValue)
+
 	promQuery := fmt.Sprintf("last_over_time(%s_%s{db=\"%s\", %s=\"%s\"}[1y])", query.metric, query.column, db[0], query.whereKey, query.whereValue)
 	resp, _, err := h.prometheusAPI.Query(r.Context(), promQuery, time.Time{})
 	if err != nil {
@@ -230,6 +240,8 @@ func (h *queryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			return nil, fmt.Errorf("Upstream response was not a scalar or vector - Actual type: %s", resp.Type())
 		}
+
+		h.log.Debug("Resp", "timestamp", timestamp, "value", value)
 
 		return &influxDBV1Response{
 			Results: []influxDBV1Result{
