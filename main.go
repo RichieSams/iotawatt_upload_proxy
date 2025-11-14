@@ -76,7 +76,7 @@ func main() {
 	defer cancel()
 
 	if err := shutdownFunc(shutdownCtx); err != nil {
-		log.Error("%v", err)
+		log.Error(err.Error())
 	}
 
 	delay := 2
@@ -115,7 +115,7 @@ func StartServer(ctx context.Context, log *slog.Logger, port int, upstream strin
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("Failed to start listening server - %v", err)
+			log.Error("Failed to start listening server", "error", err)
 		}
 	}()
 
@@ -170,36 +170,42 @@ type queryHandler struct {
 
 func (h *queryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, fmt.Sprintf("failed to parse query data - %v", err), http.StatusInternalServerError)
+		slog.Error("failed to parse query data", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	db, ok := r.Form["db"]
 	if !ok {
-		http.Error(w, "Missing `db` field in form data", http.StatusBadRequest)
+		slog.Error("Missing `db' field in form data")
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	epoch, ok := r.Form["epoch"]
 	if !ok {
-		http.Error(w, "Missing `epoch` field in form data", http.StatusBadRequest)
+		slog.Error("Missing `epoch` field in form data")
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	if epoch[0] != "s" {
-		http.Error(w, "Invalid `epoch` field value in form data", http.StatusBadRequest)
+		slog.Error("Invalid `epoch` field value in form data")
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	queryStr, ok := r.Form["q"]
 	if !ok {
-		http.Error(w, "Missing `q` field in form data", http.StatusBadRequest)
+		slog.Error("Missing `q` field in form data")
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	query, err := parseQuery(queryStr[0])
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		slog.Error(err.Error())
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -208,7 +214,8 @@ func (h *queryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	promQuery := fmt.Sprintf("last_over_time(%s_%s{db=\"%s\", %s=\"%s\"}[1y])", query.metric, query.column, db[0], query.whereKey, query.whereValue)
 	resp, _, err := h.prometheusAPI.Query(r.Context(), promQuery, time.Time{})
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to query upstream - %s", err), http.StatusInternalServerError)
+		slog.Error("Failed to query upstream", "error", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -267,7 +274,8 @@ func (h *queryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}, nil
 	}()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -275,7 +283,7 @@ func (h *queryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	encoder := json.NewEncoder(w)
 	if err := encoder.Encode(influxResponse); err != nil {
-		h.log.Error("Failed to encode influxResponse to caller - %v", err)
+		h.log.Error("Failed to encode influxResponse to caller", "error", err)
 		panic(http.ErrAbortHandler)
 	}
 }
