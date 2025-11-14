@@ -211,7 +211,7 @@ func (h *queryHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Info("Query", "metric", query.metric, "column", query.column, "db", db[0], query.whereKey, query.whereValue)
 
-	promQuery := fmt.Sprintf("last_over_time(%s_%s{db=\"%s\", %s=\"%s\"}[1y])", query.metric, query.column, db[0], query.whereKey, query.whereValue)
+	promQuery := fmt.Sprintf("last_over_time(%s_%s{db=\"%s\", %s=\"%s\"}[30d])", query.metric, query.column, db[0], query.whereKey, query.whereValue)
 	resp, _, err := h.prometheusAPI.Query(r.Context(), promQuery, time.Time{})
 	if err != nil {
 		slog.Error("Failed to query upstream", "error", err)
